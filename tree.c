@@ -156,6 +156,19 @@ static int tree_add_entry(Tree *tree, uint32_t mode, const ObjectID *hash, const
     return 0;
 }
 
+static int write_tree_object(const Tree *tree, ObjectID *id_out) {
+    void *data = NULL;
+    size_t len = 0;
+
+    if (tree_serialize(tree, &data, &len) != 0) {
+        return -1;
+    }
+
+    int rc = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return rc;
+}
+
 // Build a tree hierarchy from the current index and write all tree
 // objects to the object store.
 //
