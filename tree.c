@@ -10,11 +10,14 @@
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 
 #include "tree.h"
+#include "index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -115,6 +118,28 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 }
 
 // ─── TODO: Implement these ──────────────────────────────────────────────────
+
+static const char *path_component_after_depth(const char *path, int depth) {
+    const char *component = path;
+
+    for (int i = 0; i < depth; i++) {
+        component = strchr(component, '/');
+        if (!component) return NULL;
+        component++;
+    }
+
+    return component;
+}
+
+static void copy_path_component(char *dest, size_t dest_size, const char *component) {
+    size_t len = strcspn(component, "/");
+    if (len >= dest_size) {
+        len = dest_size - 1;
+    }
+
+    memcpy(dest, component, len);
+    dest[len] = '\0';
+}
 
 // Build a tree hierarchy from the current index and write all tree
 // objects to the object store.
