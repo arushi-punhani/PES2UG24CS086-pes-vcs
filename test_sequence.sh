@@ -71,6 +71,14 @@ echo "refs/heads/main:"
 cat .pes/refs/heads/main
 echo ""
 
+HEAD_HASH=$(sed -n 's/^ref: //p' .pes/HEAD | xargs -I{} cat .pes/{} 2>/dev/null || true)
+MAIN_HASH=$(cat .pes/refs/heads/main)
+if [ "$HEAD_HASH" = "$MAIN_HASH" ]; then
+    echo "PASS: HEAD and refs/heads/main point to the same commit"
+else
+    echo "FAIL: HEAD and refs/heads/main differ"
+fi
+
 echo "--- Object Store ---"
 echo "Objects created:"
 find .pes/objects -type f | wc -l
