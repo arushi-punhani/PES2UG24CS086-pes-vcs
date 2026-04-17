@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+extern int index_load(Index *index) __attribute__((weak));
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -225,6 +226,15 @@ static int write_tree_level(const IndexEntry *entries, int count, int depth, Obj
     }
 
     return write_tree_object(&tree, id_out);
+}
+
+static int load_index_for_tree(Index *index) {
+    if (!index_load) {
+        index->count = 0;
+        return 0;
+    }
+
+    return index_load(index);
 }
 
 // Build a tree hierarchy from the current index and write all tree
