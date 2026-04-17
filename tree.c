@@ -169,6 +169,64 @@ static int write_tree_object(const Tree *tree, ObjectID *id_out) {
     return rc;
 }
 
+static int write_tree_level(const IndexEntry *entries, int count, int depth, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    for (int i = 0; i < count; i++) {
+        const char *component = path_component_after_depth(entries[i].path, depth);
+        if (!component) continue;
+
+        char name[256];
+        copy_path_component(name, sizeof(name), component);
+
+        const char *slash = strchr(component, '/');
+        if (!slash) {
+            if (tree_add_entry(&tree, entries[i].mode, &entries[i].hash, name) != 0) {
+                return -1;
+            }
+            continue;
+        }
+
+        int already_added = 0;
+        for (int j = 0; j < tree.count; j++) {
+            if (tree.entries[j].mode == MODE_DIR && strcmp(tree.entries[j].name, name) == 0) {
+                already_added = 1;
+                break;
+            }
+        }
+        if (already_added) continue;
+
+        IndexEntry *subtree_entries = malloc(sizeof(IndexEntry) * count);
+        if (!subtree_entries) return -1;
+
+        int subtree_count = 0;
+        for (int j = 0; j < count; j++) {
+            const char *sub_component = path_component_after_depth(entries[j].path, depth);
+            if (!sub_component) continue;
+
+            char sub_name[256];
+            copy_path_component(sub_name, sizeof(sub_name), sub_component);
+            if (strcmp(sub_name, name) == 0 && strchr(sub_component, '/')) {
+                subtree_entries[subtree_count++] = entries[j];
+            }
+        }
+
+        ObjectID subtree_id;
+        if (write_tree_level(subtree_entries, subtree_count, depth + 1, &subtree_id) != 0) {
+            free(subtree_entries);
+            return -1;
+        }
+        free(subtree_entries);
+
+        if (tree_add_entry(&tree, MODE_DIR, &subtree_id, name) != 0) {
+            return -1;
+        }
+    }
+
+    return write_tree_object(&tree, id_out);
+}
+
 // Build a tree hierarchy from the current index and write all tree
 // objects to the object store.
 //
