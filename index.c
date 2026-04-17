@@ -24,6 +24,20 @@
 #include <unistd.h>
 #include <dirent.h>
 
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+static int compare_index_entries(const void *a, const void *b) {
+    const IndexEntry *entry_a = (const IndexEntry *)a;
+    const IndexEntry *entry_b = (const IndexEntry *)b;
+    return strcmp(entry_a->path, entry_b->path);
+}
+
+static uint32_t index_mode_from_stat(const struct stat *st) {
+    return (st->st_mode & S_IXUSR) ? 0100755 : 0100644;
+}
+
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 // Find an index entry by path (linear scan).
