@@ -284,6 +284,50 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
         return -1;
     }
 
+    void *header_end = memchr(object, '\0', read_len);
+    if (!header_end) {
+        free(object);
+        return -1;
+    }
+
+    size_t header_len = (uint8_t *)header_end - object;
+    char *space = memchr(object, ' ', header_len);
+    if (!space) {
+        free(object);
+        return -1;
+    }
+
+    size_t type_len = (uint8_t *)space - object;
+    if (parse_object_type((char *)object, type_len, type_out) != 0) {
+        free(object);
+        return -1;
+    }
+
+    char *size_start = space + 1;
+    char *size_end = NULL;
+    unsigned long long parsed_len = strtoull(size_start, &size_end, 10);
+    if (size_end != (char *)header_end) {
+        free(object);
+        return -1;
+    }
+
+    size_t data_len = read_len - header_len - 1;
+    if ((size_t)parsed_len != data_len) {
+        free(object);
+        return -1;
+    }
+
+    void *data = malloc(data_len ? data_len : 1);
+    if (!data) {
+        free(object);
+        return -1;
+    }
+    if (data_len > 0) {
+        memcpy(data, (uint8_t *)header_end + 1, data_len);
+    }
+
     free(object);
-    return -1;
+    *data_out = data;
+    *len_out = data_len;
+    return 0;
 }
