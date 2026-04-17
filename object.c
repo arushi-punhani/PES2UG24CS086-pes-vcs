@@ -123,8 +123,33 @@ static int parse_object_type(const char *type, size_t len, ObjectType *type_out)
 //
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // TODO: Implement
-    (void)type; (void)data; (void)len; (void)id_out;
+    if (!data && len > 0) return -1;
+    if (!id_out) return -1;
+
+    const char *type_name = object_type_name(type);
+    if (!type_name) return -1;
+
+    char header[64];
+    int header_len = snprintf(header, sizeof(header), "%s %zu", type_name, len);
+    if (header_len < 0 || (size_t)header_len + 1 > sizeof(header)) return -1;
+
+    size_t object_len = (size_t)header_len + 1 + len;
+    uint8_t *object = malloc(object_len);
+    if (!object) return -1;
+
+    memcpy(object, header, (size_t)header_len);
+    object[header_len] = '\0';
+    if (len > 0) {
+        memcpy(object + header_len + 1, data, len);
+    }
+
+    compute_hash(object, object_len, id_out);
+    if (object_exists(id_out)) {
+        free(object);
+        return 0;
+    }
+
+    free(object);
     return -1;
 }
 
