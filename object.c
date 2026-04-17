@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <openssl/evp.h>
 
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
@@ -149,8 +150,70 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         return 0;
     }
 
+    char final_path[512];
+    object_path(id_out, final_path, sizeof(final_path));
+
+    char hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(id_out, hex);
+
+    char shard_dir[512];
+    int shard_len = snprintf(shard_dir, sizeof(shard_dir), "%s/%.2s", OBJECTS_DIR, hex);
+    if (shard_len < 0 || (size_t)shard_len >= sizeof(shard_dir)) {
+        free(object);
+        return -1;
+    }
+
+    if (mkdir(shard_dir, 0755) != 0 && errno != EEXIST) {
+        free(object);
+        return -1;
+    }
+
+    char temp_path[512];
+    int temp_len = snprintf(temp_path, sizeof(temp_path), "%s/tmp_object_XXXXXX", shard_dir);
+    if (temp_len < 0 || (size_t)temp_len >= sizeof(temp_path)) {
+        free(object);
+        return -1;
+    }
+
+    int fd = mkstemp(temp_path);
+    if (fd < 0) {
+        free(object);
+        return -1;
+    }
+
+    size_t written = 0;
+    while (written < object_len) {
+        ssize_t n = write(fd, object + written, object_len - written);
+        if (n <= 0) {
+            close(fd);
+            unlink(temp_path);
+            free(object);
+            return -1;
+        }
+        written += (size_t)n;
+    }
     free(object);
-    return -1;
+
+    if (fsync(fd) != 0 || close(fd) != 0) {
+        unlink(temp_path);
+        return -1;
+    }
+
+    if (rename(temp_path, final_path) != 0) {
+        unlink(temp_path);
+        return -1;
+    }
+
+    int dir_fd = open(shard_dir, O_RDONLY | O_DIRECTORY);
+    if (dir_fd >= 0) {
+        if (fsync(dir_fd) != 0) {
+            close(dir_fd);
+            return -1;
+        }
+        close(dir_fd);
+    }
+
+    return 0;
 }
 
 // Read an object from the store.
