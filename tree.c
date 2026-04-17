@@ -141,6 +141,21 @@ static void copy_path_component(char *dest, size_t dest_size, const char *compon
     dest[len] = '\0';
 }
 
+static int tree_add_entry(Tree *tree, uint32_t mode, const ObjectID *hash, const char *name) {
+    if (tree->count >= MAX_TREE_ENTRIES) return -1;
+
+    TreeEntry *entry = &tree->entries[tree->count];
+    entry->mode = mode;
+    entry->hash = *hash;
+
+    size_t name_len = strlen(name);
+    if (name_len >= sizeof(entry->name)) return -1;
+    memcpy(entry->name, name, name_len + 1);
+
+    tree->count++;
+    return 0;
+}
+
 // Build a tree hierarchy from the current index and write all tree
 // objects to the object store.
 //
